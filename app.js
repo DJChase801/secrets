@@ -4,7 +4,8 @@ const express = require("express");
 const bodyParser = require("body-parser"); 
 const ejs = require("ejs");
 const mongoose = require("mongoose");
-const encrypt = require("mongoose-encryption");
+const bcrypt = require("bcrypt"); 
+const saltRounds = 10; 
 
 const app = express(); 
 
@@ -19,8 +20,6 @@ const userSchema = new mongoose.Schema({
     password: String
 }); 
 
-userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ['password']}); 
-
 const User = new mongoose.model("User", userSchema); 
 
 app.get("/", function(req, res) {
@@ -34,21 +33,22 @@ app.get("/register", function(req, res) {
 });
 
 app.post("/register", function(req, res) {
-
     if(req.body.username != "" && req.body.password != "") {
 
-        const newUser = new User({
-            email: req.body.username, 
-            password: req.body.password
-        }); 
-        
-        newUser.save(function(err){
-            if(!err) {
-                res.render("secrets"); 
-            } else {
-                res.send(err); 
-            }
-        }); 
+        bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
+            const newUser = new User({
+                email: req.body.username, 
+                password: hash
+            }); 
+            
+            newUser.save(function(err){
+                if(!err) {
+                    res.render("secrets"); 
+                } else {
+                    res.send(err); 
+                }
+            }); 
+        });
     } else {
         console.log("You must fill in both fields!");
     }
@@ -59,10 +59,15 @@ app.post("/login", function(req, res) {
         {email: req.body.username},
         function(err, doc) {
             if(doc) {
-                if(doc.password === req.body.password) {
-                    res.render("secrets"); 
-                } 
-            } else {
+                bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
+                        if(doc.password === hash) {
+                            res.render("secrets");
+                        } else {
+                            console.log("Incorrect password, please try again.");
+                        }
+                    });
+            } 
+            else {
                 console.log("Name and password not found! Please try again.");
             }
         }
